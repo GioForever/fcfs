@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FCFS Scheduling - Elementary Demo</title>
+  <style>
+    html,body{height:100%;margin:0;font-family:Arial, sans-serif}
+    body{
+      background-image: url('https://i.pinimg.com/736x/27/a9/73/27a9735aa9f03f6850cee7861e9693e4.jpg');
+      background-size: cover; background-position: center; display:flex; align-items:center; justify-content:center;
+    }
+    .card{background:rgba(255,255,255,0.95); padding:18px; border-radius:10px; width:920px; max-width:96%; box-shadow:0 6px 20px rgba(0,0,0,0.2)}
+    h1{font-family: Arial; font-weight:700; margin:0 0 8px}
+    label{display:block;font-weight:700;margin:6px 0 4px}
+    .row{display:flex;gap:12px;align-items:end}
+    input[type=text], input[type=number]{padding:8px;border:1px solid #bbb;border-radius:6px;width:100%}
+    button{font-weight:700;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    .btn-primary{background:#1976d2;color:white}
+    .btn-secondary{background:#555;color:white}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid #ddd;padding:8px;text-align:center}
+    th{background:#f3f3f3}
+    .gantt{display:flex;gap:4px;margin-top:12px;align-items:center}
+    .gantt .bar{height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+    .small{font-size:13px;color:#333}
+    .note{font-size:13px;color:#333;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Process Input</h1>
+    <div class="row">
+      <div style="flex:2">
+        <label>Process Name</label>
+        <input id="pname" type="text" placeholder="e.g. P1" />
+      </div>
+      <div style="flex:1">
+        <label>Arrival Time</label>
+        <input id="arrival" type="number" min="0" value="0" />
+      </div>
+      <div style="flex:1">
+        <label>Burst Time</label>
+        <input id="burst" type="number" min="1" value="1" />
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn-primary" id="addBtn">Add Process</button>
+        <button class="btn-secondary" id="calcBtn">Calculate</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </div>
+
+    <div id="processListArea">
+      <table id="plist" style="margin-top:12px">
+        <thead>
+          <tr><th>Process</th><th>Arrival</th><th>Burst</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="resultsArea"></div>
+
+    <p class="note">Notes: Minimum 3 processes and maximum 10 processes for this demo.</p>
+  </div>
+
+<script>
+  // Simple FCFS implementation (elementary)
+  const processes = [];
+  const addBtn = document.getElementById('addBtn');
+  const calcBtn = document.getElementById('calcBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  function refreshList(){
+    const tbody = document.querySelector('#plist tbody');
+    tbody.innerHTML = '';
+    processes.forEach(p => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${p.name}</td><td>${p.arrival}</td><td>${p.burst}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  addBtn.onclick = () => {
+    const name = document.getElementById('pname').value.trim();
+    const arrival = Number(document.getElementById('arrival').value);
+    const burst = Number(document.getElementById('burst').value);
+    if(!name || isNaN(arrival) || isNaN(burst) || burst<=0){
+      alert('Please enter valid name, arrival (>=0) and burst (>0).');
+      return;
+    }
+    if(processes.length >= 10){ alert('Maximum 10 processes allowed.'); return; }
+    // Keep original insertion order for tie-breaking
+    processes.push({name, arrival, burst, idx: processes.length});
+    refreshList();
+    document.getElementById('pname').value='';
+    document.getElementById('burst').value=1;
+  };
+
+  calcBtn.onclick = () => {
+    if(processes.length < 3){ alert('Please add at least 3 processes before calculating.'); return; }
+    // Sort by arrival, then by insertion order
+    const queue = [...processes].sort((a,b)=> a.arrival - b.arrival || a.idx - b.idx);
+    let time = 0;
+    const results = [];
+    for(const p of queue){
+      const start = Math.max(time, p.arrival);
+      const completion = start + p.burst;
+      const turnaround = completion - p.arrival;
+      const waiting = start - p.arrival;
+      results.push({...p, start, completion, turnaround, waiting});
+      time = completion;
+    }
+
+    const avgTurn = (results.reduce((s,r)=>s+r.turnaround,0)/results.length).toFixed(2);
+    const avgWait = (results.reduce((s,r)=>s+r.waiting,0)/results.length).toFixed(2);
+
+    // Display results table
+    const resArea = document.getElementById('resultsArea');
+    let html = '<h2>Results</h2>';
+    html += '<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Start</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody>';
+    for(const r of results){
+      html += `<tr><td>${r.name}</td><td>${r.arrival}</td><td>${r.burst}</td><td>${r.start}</td><td>${r.completion}</td><td>${r.turnaround}</td><td>${r.waiting}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    html += `<p class="small"><strong>Average Turnaround Time:</strong> ${avgTurn} &nbsp;&nbsp; <strong>Average Waiting Time:</strong> ${avgWait}</p>`;
+
+    // Draw a simple Gantt chart
+    const totalDuration = results[results.length-1].completion - results[0].start;
+    html += '<div class="gantt">';
+    for(const r of results){
+      const width = Math.max(20, (r.burst / totalDuration) * 600);
+      const color = '#' + Math.floor(Math.random()*16777215).toString(16);
+      html += `<div class="bar" style="width:${width}px;background:${color}">${r.name}<span style="margin-left:6px;font-weight:400"></span></div>`;
+    }
+    html += '</div>';
+
+    resArea.innerHTML = html;
+  };
+
+  resetBtn.onclick = () => {
+    processes.length = 0;
+    document.querySelector('#plist tbody').innerHTML='';
+    document.getElementById('resultsArea').innerHTML='';
+    document.getElementById('pname').value='';
+    document.getElementById('arrival').value=0;
+    document.getElementById('burst').value=1;
+  };
+</script>
+</body>
+</html>
